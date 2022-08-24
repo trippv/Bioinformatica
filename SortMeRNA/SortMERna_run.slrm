@@ -1,0 +1,100 @@
+#!/bin/bash
+#########################################################
+#SortMeRna perform filtering
+
+## Directivas
+#SBATCH --job-name=SortMeRna # Script for making the filtering from paired end reads
+#SBATCH --output=SortMe_gz-%j.log
+#SBATCH --error=SortMe_gz-%j.err
+#SBATCH -N 1
+#SBATCH --mem=50GB
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 6-00:00:00
+#SBATCH -p cicese
+
+# Paths
+SORTME=/LUSTRE/bioinformatica_data/genomica_funcional/bin/sortmerna-4.2.0 #Path to the SortMeRna 4.2.0
+DATABASES=/LUSTRE/bioinformatica_data/genomica_funcional/bin/sortmerna-2.1b #Databases from version 2.1
+output=./Run/out # folder with the outputs for sortmerna
+
+
+
+
+# files for storage
+BlastDir="aligned_rRNA_Blast"
+alignRNA="aligned_rRNA"
+alignnonrRNA="aligned_nonrRNA"
+logs="aligned_logs"
+
+
+if [ -d $BlastDir ]; then
+        echo "ya existe dir $BlastDir"
+        else
+        echo "creando nuevo dir $BlastDir"
+        mkdir $BlastDir
+fi
+
+if [ -d $alignRNA ]; then
+        echo "ya existe $alignRNA"
+        else
+        echo "creando nuevo dir $alignRNA"
+        mkdir $alignRNA
+fi
+
+if [ -d $alignnonrRNA ]; then
+        echo "ya existe $alignnonrRNA"
+        else
+        echo "creando nuevo dir $alignnonrRNA"
+        mkdir $alignnonrRNA
+fi
+
+if [ -d $logs ]; then
+        echo "ya existe $logs"
+        else
+        echo "creando nuevo dir $logs"
+        mkdir $logs
+fi
+
+
+
+for inFile1 in *_1.fq.gz; do
+   inFile2=${inFile1/_1.fq.gz/_2.fq.gz}
+   
+   echo "Using $inFile1 + $inFile2"
+   
+   outBase=${inFile1%%_1.fq.gz}
+
+
+
+# RUN sortmeRNA
+
+$SORTME/sortmerna \
+-ref $DATABASES/rRNA_databases/silva-euk-28s-id98.fasta \
+-ref $DATABASES/rRNA_databases/silva-euk-18s-id95.fasta \
+-reads ${outBase}_1.fq.gz \
+-reads ${outBase}_2.fq.gz \
+-workdir ./Run \
+-fastx \
+-other ${outBase}_nonrRNA \
+--num_alignments 1 \
+-blast '1 cigar qcov' \
+--paired_in -v --threads 8 --out2 \
+
+
+
+
+# move files to safer folders
+
+mv $output/*.fq ./$alignRNA # move aligned RNA
+
+mv $output/*.blast ./$BlastDir/${outBase}.blast #move blast results
+
+mv $output/*.log ./$logs/${outBase}.log
+
+# move aligned nonRNA
+
+mv ./*rev.fq ./$alignnonrRNA
+mv ./*fwd.fq ./$alignnonrRNA
+
+rm ./Run -rf # delete output file
+done
